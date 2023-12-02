@@ -1,0 +1,35 @@
+# 基础设置
+authorName: LM
+experimentName: bondnet  # 必填
+
+trialConcurrency: 5 # 必填，指定同时运行的 Trial 任务的最大数量。
+# ！ 如果 trialGpuNum 大于空闲的 GPU 数量，并且并发的 Trial 任务数量还没达到 trialConcurrency，Trial 任务会被放入队列，等待分配 GPU 资源。
+
+maxExecDuration: 24h #  可选。 整个调参过程最长运行时间。 默认值：999d。
+maxTrialNum: 20 # 可选。 NNI 创建的最大 Trial 任务数。 默认值：99999。
+trainingServicePlatform: local  # 指定运行 Experiment 的平台，包括 local, remote, pai, kubeflow, frameworkcontroller
+
+# 搜索空间文件
+searchSpacePath: search_space.json
+useAnnotation: false # 如果 useAnnotation 为 true，searchSpacePath 字段会被删除。
+
+# 日志
+logDir: ../nni_log_info # og的存储路径
+logLevel: info
+
+# 调参器
+tuner:
+  builtinTunerName: TPE # 指定内置的调参算法
+
+# 运行的命令，以及 Trial 代码的路径
+trial:
+  command: python main.py
+  codeDir: .. #  必需字符串。 指定 Trial 文件的目录。
+  # gpuNum: 1 #  可选、整数。 指定了运行每个 Trial 进程的 GPU 数量。 默认值为 0。
+
+# # 本机模式下配置，可选。
+# localConfig:
+#   gpuIndices: 0,1,2,3  # 默认值none。设置后，只有指定的 GPU 会被用来运行 Trial 任务。
+#   # ! 和CUDA_VISIBLE_DEVICE=0,3 的效果相同，在程序内部的gpu编号依旧是从0开始的
+#   maxTrialNumPerGpu: 5 #  默认值1。指定1个GPU上最大并发trail的数量
+#   useActiveGpu: true #  默认值false。是否使用已经被其他进程使用的gpu。

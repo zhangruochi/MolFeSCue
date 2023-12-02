@@ -1,0 +1,6 @@
+{
+    "JK": {"_type": "choice", "_value": ["last", "sum", "max", "concat"]},
+    "graph_pooling": {"_type": "choice", "_value": ["sum", "mean", "max", "attention"]},
+    "JK_coo_attention":{"_type": "choice", "_value": ["last", "sum", "max"]},
+    "gnn_type":{"_type": "choice", "_value": ["gin", "gcn", "graphsage", "gat"]}
+}

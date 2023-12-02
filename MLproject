@@ -1,0 +1,24 @@
+name: FSADMET
+
+conda_env: environment.yaml
+
+entry_points:
+    
+    fetch_data:
+        command: "python fetch_data.py"
+
+    evaluate_register:
+        command: "python evaluate.py"
+
+    save_artifacts:        
+        command: "python save_artifacts.py"
+    
+    main:
+        command: "python main.py"  
+
+
+
+
+
+
+    
