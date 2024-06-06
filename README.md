@@ -21,7 +21,7 @@ cd data && python splitdata.py
 
 ## Training 
 ```
-train_fewshot.py
+python train_fewshot.py
 ```
 
 ## Reproduce the results
@@ -60,7 +60,6 @@ train:
 ```
 2. Check the reproduce log file in the `./outputs/2024-06-06/20-26-47` folder 
 
-
 ## NNI for hyperparameter tuning
 
 Due to the problem setting of few-shot learning, models are often very sensitive to parameters. MolFesCue does not have any magical hyperparameters, and regular parameter settings can achieve ideal results. If you want to obtain better results, you can use NNI for parameter search.
@@ -75,6 +74,9 @@ mode:
 ```
 nnictl create --config config.yaml --port 8080
 ```
+4. Open the browser to check the results.
+   
+![results.](./doc/hp.png)
 
 ## Launch MLFlow
 
