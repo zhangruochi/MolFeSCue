@@ -7,7 +7,7 @@
 # Author: Ruochi Zhang
 # Email: zrc720@gmail.com
 # -----
-# Last Modified: Sat Dec 02 2023
+# Last Modified: Tue Jun 04 2024
 # Modified By: Ruochi Zhang
 # -----
 # Copyright (c) 2022 Bodkin World Domination Enterprises
@@ -61,6 +61,7 @@ class GNN(torch.nn.Module):
         node representations
 
     """
+
     def __init__(self,
                  num_layer,
                  emb_dim,
@@ -138,12 +139,14 @@ class GNN(torch.nn.Module):
             node_rep = h_list[-1]
         elif self.JK == "max":
             h_list = [torch.unsqueeze(h, 0) for h in h_list]
-            node_rep = torch.max(torch.cat(h_list, dim=0), keepdim=False, dim=0)[0]
+            node_rep = torch.max(torch.cat(h_list, dim=0),
+                                 keepdim=False,
+                                 dim=0)[0]
         elif self.JK == "sum":
             h_list = [torch.unsqueeze(h, 0) for h in h_list]
             node_rep = torch.sum(torch.cat(h_list, dim=0),
-                                            keepdim=False,
-                                            dim=0)
+                                 keepdim=False,
+                                 dim=0)
         return node_rep
 
 
@@ -163,6 +166,7 @@ class GNN_graphpred(torch.nn.Module):
     See https://arxiv.org/abs/1810.00826
     JK-net: https://arxiv.org/abs/1806.03536
     """
+
     def __init__(self,
                  num_layer,
                  emb_dim,
@@ -215,7 +219,7 @@ class GNN_graphpred(torch.nn.Module):
             self.mult = 1
 
         self.graph_pred_linear = torch.nn.Linear(self.mult * self.emb_dim,
-                                                     self.num_tasks)
+                                                 self.num_tasks)
 
     def from_pretrained(self, model_file):
         # self.gnn = GNN(self.num_layer, self.emb_dim, JK = self.JK, drop_ratio = self.drop_ratio)
@@ -235,7 +239,7 @@ class GNN_graphpred(torch.nn.Module):
 
         graph_rep = self.pool(node_rep, batch)
         pred = self.graph_pred_linear(graph_rep)
-        
+
         return pred, graph_rep, node_rep
 
 

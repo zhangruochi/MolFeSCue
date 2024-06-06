@@ -7,25 +7,25 @@
 # Author: Ruochi Zhang
 # Email: zrc720@gmail.com
 # -----
-# Last Modified: Wed Nov 16 2022
+# Last Modified: Thu Jun 06 2024
 # Modified By: Ruochi Zhang
 # -----
 # Copyright (c) 2022 Bodkin World Domination Enterprises
-# 
+#
 # MIT License
-# 
+#
 # Copyright (c) 2022 Ruochi Zhang
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy of
 # this software and associated documentation files (the "Software"), to deal in
 # the Software without restriction, including without limitation the rights to
 # use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
 # of the Software, and to permit persons to whom the Software is furnished to do
 # so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in all
 # copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -38,20 +38,23 @@
 
 import nni
 
+
 def update_cfg(cfg):
     # get trialID
     trial_id = nni.get_trial_id()
     # initialize the params
     optimized_params = nni.get_next_parameter()
-    if not optimized_params == {}:
+    if optimized_params:
         # update the config before training
-        for p in cfg.model:
+        for p in cfg.model.gnn:
             if p in optimized_params:
-                cfg.model[p] = optimized_params[p]
+                cfg.model.gnn[p] = optimized_params[p]
 
         cfg.train.random_seed = optimized_params["random_seed"]
-        cfg.train.lr = optimized_params["lr"]
-        # cfg.train.lr_scheduler.type = optimized_params["lr_scheduler"]
+        cfg.train.meta_lr = optimized_params["meta_lr"]
+        cfg.train.update_lr = optimized_params["update_lr"]
+        cfg.train.update_step_test = optimized_params["update_step_test"]
+        cfg.train.decay = optimized_params["decay"]
         cfg.logger.log_dir = "outputs_{}".format(trial_id)
-        
+
     return cfg

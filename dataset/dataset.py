@@ -7,7 +7,7 @@
 # Author: Ruochi Zhang
 # Email: zrc720@gmail.com
 # -----
-# Last Modified: Sat Dec 02 2023
+# Last Modified: Tue Jun 04 2024
 # Modified By: Ruochi Zhang
 # -----
 # Copyright (c) 2022 Bodkin World Domination Enterprises
@@ -165,12 +165,6 @@ class MoleculeDataset(InMemoryDataset):
 
         super(MoleculeDataset, self).__init__(root, transform, pre_transform,
                                                  pre_filter)
-
-
-        # print(self.raw_dir) # /data/zhangruochi/projects/fewshot_admet/data/tox21/new/0/raw
-        # print(self.raw_paths) # ['/data/zhangruochi/projects/fewshot_admet/data/tox21/new/0/raw/tox21.json']
-        # print(self.processed_paths) # ['/data/zhangruochi/projects/fewshot_admet/data/tox21/new/0/processed/geometric_data_processed.pt']
-        # print(self.processed_dir) # /data/zhangruochi/projects/fewshot_admet/data/tox21/new/0/processed
 
         self.transform, self.pre_transform, self.pre_filter = transform, pre_transform, pre_filter
         if not empty:

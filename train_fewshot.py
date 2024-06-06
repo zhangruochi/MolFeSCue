@@ -2,12 +2,12 @@
 # -*- coding:utf-8 -*-
 ###
 # File: /data/zhangruochi/projects/fewshot_admet/train.py
-# Project: /home/richard/projects/MolFeSCue
+# Project: /home/richard/projects/fsadmet
 # Created Date: Tuesday, June 28th 2022, 6:47:18 pm
 # Author: Ruochi Zhang
 # Email: zrc720@gmail.com
 # -----
-# Last Modified: Sat Dec 02 2023
+# Last Modified: Tue Jun 04 2024
 # Modified By: Ruochi Zhang
 # -----
 # Copyright (c) 2022 Bodkin World Domination Enterprises
@@ -35,7 +35,6 @@
 # SOFTWARE.
 # -----
 ###
-
 import os
 import sys
 
@@ -70,14 +69,6 @@ def main(cfg: DictConfig):
         mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
         mlflow.set_experiment(os.environ["MLFLOW_EXPERIMENT_NAME"])
 
-    local_rank = int(os.environ["LOCAL_RANK"])
-    global_rank = int(os.environ['RANK'])
-    world_size = int(os.environ['WORLD_SIZE'])
-    os.environ['NCCL_DEBUG'] = 'INFO'
-    # os.environ['NCCL_SHM_DISABLE'] = '1'
-    # os.environ["NCCL_SOCKET_IFNAME"] = "eno1"
-    setup_multinodes(local_rank, world_size)
-
     if cfg.mode.nni:
         # use nni params
         cfg = update_cfg(cfg)
@@ -105,7 +96,7 @@ def main(cfg: DictConfig):
     device = torch.device("cuda", local_rank)
     meta_model = model_preperation(orig_cwd, cfg).to(device)
 
-    trainer = Trainer(meta_model, cfg, device = device)
+    trainer = Trainer(meta_model, cfg, device=device)
 
     trainer.run()
 

@@ -7,7 +7,7 @@
 # Author: Ruochi Zhang
 # Email: zrc720@gmail.com
 # -----
-# Last Modified: Sat Dec 02 2023
+# Last Modified: Tue Jun 04 2024
 # Modified By: Ruochi Zhang
 # -----
 # Copyright (c) 2021 Bodkin World Domination Enterprises
@@ -51,25 +51,29 @@ def model_preperation(orig_cwd: str, cfg: DictConfig) -> torch.nn.Module:
     if cfg.model.backbone == "gnn":
 
         base_learner = GNN_graphpred(cfg.model.gnn.num_layer,
-                            cfg.model.gnn.emb_dim,
-                            1,
-                            JK=cfg.model.gnn.JK,
-                            drop_ratio=cfg.model.gnn.dropout_ratio,
-                            graph_pooling=cfg.model.gnn.graph_pooling,
-                            gnn_type=cfg.model.gnn.gnn_type)
+                                     cfg.model.gnn.emb_dim,
+                                     1,
+                                     JK=cfg.model.gnn.JK,
+                                     drop_ratio=cfg.model.gnn.dropout_ratio,
+                                     graph_pooling=cfg.model.gnn.graph_pooling,
+                                     gnn_type=cfg.model.gnn.gnn_type)
 
         if cfg.model.gnn.pretrained:
-            Logger.info("load pretrained model from {} ......".format(cfg.model.gnn.pretrained))
-            base_learner.from_pretrained(os.path.join(orig_cwd, cfg.model.gnn.pretrained))
-        
+            Logger.info("load pretrained model from {} ......".format(
+                cfg.model.gnn.pretrained))
+            base_learner.from_pretrained(
+                os.path.join(orig_cwd, cfg.model.gnn.pretrained))
+
         model = MetaGraphModel(base_learner, cfg.meta.selfsupervised_weight,
-                        cfg.model.gnn.emb_dim)
+                               cfg.model.gnn.emb_dim)
 
     elif cfg.model.backbone == "seq":
 
-        base_learner = AutoModel.from_pretrained(os.path.join(orig_cwd, cfg.model.seq.pretrained))
-        tokenizer = AutoTokenizer.from_pretrained(os.path.join(orig_cwd, cfg.model.seq.pretrained))
-        
+        base_learner = AutoModel.from_pretrained(
+            os.path.join(orig_cwd, cfg.model.seq.pretrained))
+        tokenizer = AutoTokenizer.from_pretrained(
+            os.path.join(orig_cwd, cfg.model.seq.pretrained))
+
         model = MetaSeqModel(base_learner, tokenizer)
 
     Logger.info("load model successful! ......\n")

@@ -7,7 +7,7 @@
 # Author: Ruochi Zhang
 # Email: zrc720@gmail.com
 # -----
-# Last Modified: Sat Dec 02 2023
+# Last Modified: Tue Jun 04 2024
 # Modified By: Ruochi Zhang
 # -----
 # Copyright (c) 2022 Bodkin World Domination Enterprises
@@ -43,6 +43,7 @@ from transformers import AutoModel, AutoTokenizer
 
 
 class attention(nn.Module):
+
     def __init__(self, dim):
         super(attention, self).__init__()
         self.layers = nn.Sequential(nn.Linear(dim, 100), nn.ReLU(),
@@ -58,6 +59,7 @@ class attention(nn.Module):
 
 
 class Interact_attention(nn.Module):
+
     def __init__(self, dim, num_tasks):
         super(Interact_attention, self).__init__()
         self.layers = nn.Sequential(nn.Linear(num_tasks * dim, dim), nn.Tanh())
@@ -65,6 +67,7 @@ class Interact_attention(nn.Module):
     def forward(self, x):
         x = self.layers(x)
         return x
+
 
 class MetaGraphModel(nn.Module):
 
@@ -75,27 +78,23 @@ class MetaGraphModel(nn.Module):
         self.emb_dim = emb_dim
         self.selfsupervised_weight = selfsupervised_weight
 
-
-
         if self.selfsupervised_weight > 0:
             self.masking_linear = nn.Linear(self.emb_dim, 119)
-            
+
 
 class MetaSeqModel(nn.Module):
+
     def __init__(self, base_model, tokenizer):
         super(MetaSeqModel, self).__init__()
 
         self.base_model = base_model
         self.tokenizer = tokenizer
-        self.global_avg_pool =  nn.AdaptiveAvgPool2d((1, 768))
+        self.global_avg_pool = nn.AdaptiveAvgPool2d((1, 768))
         self.final_layer = nn.Linear(768, 1)
 
-
-    def forward(self,x):
-        pred_y = self.base_model(**x)[0] # [10,153,768]   
-        pool_output = self.global_avg_pool(pred_y).squeeze(1) # [10,768]
-        pred = self.final_layer(pool_output) # 10x1 
+    def forward(self, x):
+        pred_y = self.base_model(**x)[0]  # [10,153,768]
+        pool_output = self.global_avg_pool(pred_y).squeeze(1)  # [10,768]
+        pred = self.final_layer(pool_output)  # 10x1
 
         return pred, pool_output
-
-    

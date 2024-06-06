@@ -1,6 +1,13 @@
 {
-    "JK": {"_type": "choice", "_value": ["last", "sum", "max", "concat"]},
-    "graph_pooling": {"_type": "choice", "_value": ["sum", "mean", "max", "attention"]},
-    "JK_coo_attention":{"_type": "choice", "_value": ["last", "sum", "max"]},
-    "gnn_type":{"_type": "choice", "_value": ["gin", "gcn", "graphsage", "gat"]}
+    "JK": {"_type": "choice", "_value": ["sum", "max"]},
+    "graph_pooling": {"_type": "choice", "_value": ["max", "sum"]},
+    "pretrained": {"_type": "choice", "_value": ["./data/pretrained/masking.pth"]},
+    "drop_ratio": {"_type": "choice", "_value": [0.1, 0.3, 0.5]},
+    "random_seed": {"_type": "choice", "_value": [7]},
+    "meta_lr": {"_type": "choice", "_value": [1e-3, 3e-4]},
+    "update_lr": {"_type": "choice", "_value": [1e-2]},
+    "beta": {"_type": "choice", "_value": [0.1]},
+    "update_step_test": {"_type": "choice", "_value": [1]},
+    "decay": {"_type": "choice", "_value": [5e-5, 0]}
 }
+

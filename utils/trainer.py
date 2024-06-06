@@ -7,7 +7,7 @@
 # Author: Ruochi Zhang
 # Email: zrc720@gmail.com
 # -----
-# Last Modified: Sat Dec 02 2023
+# Last Modified: Fri Jun 07 2024
 # Modified By: Ruochi Zhang
 # -----
 # Copyright (c) 2022 Bodkin World Domination Enterprises
@@ -67,19 +67,22 @@ import nni
 
 
 class Trainer(object):
+
     def __init__(self, meta_model, cfg, device):
 
         self.meta_model = meta_model
         self.device = device
         self.cfg = cfg
-        
+
         # meta-learning parameters
         self.dataset_name = cfg.data.dataset
-        self.data_path_root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), cfg.data.path)
+        self.data_path_root = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            cfg.data.path)
 
         self.num_tasks = cfg.tasks[self.dataset_name].num_tasks
-        self.num_train_tasks = cfg.tasks[self.dataset_name].num_train_tasks
-        self.num_test_tasks = cfg.tasks[self.dataset_name].num_test_tasks
+        self.num_train_tasks = len(cfg.tasks[self.dataset_name].train_tasks)
+        self.num_test_tasks = len(cfg.tasks[self.dataset_name].test_tasks)
         self.n_way = cfg.tasks[self.dataset_name].n_way
         self.m_support = cfg.tasks[self.dataset_name].m_support
         self.k_query = cfg.tasks[self.dataset_name].k_query
@@ -91,49 +94,33 @@ class Trainer(object):
         self.update_step = cfg.train.update_step
         self.update_step_test = cfg.train.update_step_test
         self.eval_epoch = cfg.train.eval_epoch
-     
+
+        self.default_metric = 0
+
         ## --------  criterion ----------
 
         if cfg.model.backbone == "gnn":
             self.loss_func = LossGraphFunc(cfg.meta.selfsupervised_weight,
-                                  cfg.meta.contrastive_weight, cfg.meta.alpha_s, cfg.meta.alpha_e, cfg.meta.beta)
+                                           cfg.meta.contrastive_weight,
+                                           cfg.meta.alpha_s, cfg.meta.alpha_e,
+                                           cfg.meta.beta)
         elif cfg.model.backbone == "seq":
-            self.loss_func = LossSeqFunc(cfg.meta.contrastive_weight, cfg.meta.alpha_s, cfg.meta.alpha_e, cfg.meta.beta)
-
+            self.loss_func = LossSeqFunc(cfg.meta.contrastive_weight,
+                                         cfg.meta.alpha_s, cfg.meta.alpha_e,
+                                         cfg.meta.beta)
 
         ## --------  optiomizaer ----------
         if cfg.model.backbone == "gnn":
-            model_param_group = []
 
-            model_param_group.append(
-                {"params": self.meta_model.base_model.gnn.parameters()})
-
-            model_param_group.append({
-                "params":
-                self.meta_model.base_model.graph_pred_linear.parameters(),
-                "lr":
-                cfg.train.lr * cfg.train.lr_scale
-            })
-
-            if cfg.model.gnn.graph_pooling == "attention":
-                model_param_group.append({
-                    "params":
-                    self.meta_model.base_model.pool.parameters(),
-                    "lr":
-                    cfg.train.lr * cfg.train.lr_scale
-                })
-            
-            if cfg.meta.selfsupervised_weight:
-                model_param_group.append({"params": self.meta_model.masking_linear.parameters()})
-
-            self.optimizer = optim.Adam(model_param_group,
-                                lr=cfg.train.meta_lr,
-                                weight_decay=cfg.train.decay)
+            self.optimizer = optim.Adam(
+                self.meta_model.base_model.parameters(),
+                lr=cfg.train.meta_lr,
+                weight_decay=cfg.train.decay)
 
         elif cfg.model.backbone == "seq":
             self.optimizer = optim.Adam(self.meta_model.parameters(),
-                                lr=cfg.train.meta_lr,
-                                weight_decay=cfg.train.decay)
+                                        lr=cfg.train.meta_lr,
+                                        weight_decay=cfg.train.decay)
 
         ## --------  optimizaer ----------
 
@@ -143,11 +130,8 @@ class Trainer(object):
         self.num_workers = cfg.data.num_workers
         ## --------  trainer ----------
 
-        self.lr_scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer,
-                                                            self.epochs,
-                                                            gamma=cfg.train.lr_decay_ratio,
-                                                            last_epoch=-1,
-                                                            verbose=False)
+        # self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        #     self.optimizer, T_0=2, T_mult=2, eta_min=1e-5, verbose=True)
 
     def train_epoch(self, epoch):
 
@@ -157,33 +141,40 @@ class Trainer(object):
 
         self.meta_model.base_model.train()
 
-        for task in range(self.num_train_tasks):
+        for task in self.cfg.tasks[self.dataset_name].train_tasks:
             # for task in tasks_list:
 
             if self.cfg.model.backbone == "gnn":
-                dataset = MoleculeDataset(os.path.join(self.data_path_root, self.dataset_name, "new", str(task+1)),
-                                        dataset=self.dataset_name)
+                dataset = MoleculeDataset(os.path.join(self.data_path_root,
+                                                       self.dataset_name,
+                                                       "new", str(task + 1)),
+                                          dataset=self.dataset_name)
                 collate_fn = None
+                MyDataLoader = DataLoader
+
             elif self.cfg.model.backbone == "seq":
-                dataset = MoleculeDatasetChem(os.path.join(self.data_path_root, self.dataset_name, "new", str(task+1)),
-                                        dataset=self.dataset_name)
+                dataset = MoleculeDatasetChem(os.path.join(
+                    self.data_path_root, self.dataset_name, "new",
+                    str(task + 1)),
+                                              dataset=self.dataset_name)
                 collate_fn = my_collate_fn
-                DataLoader = DataLoaderChem
+                MyDataLoader = DataLoaderChem
 
             support_dataset, query_dataset = sample_datasets(
-                dataset, self.dataset_name, task, self.n_way, self.m_support, self.k_query)
+                dataset, self.dataset_name, task, self.n_way, self.m_support,
+                self.k_query)
 
-            support_loader = DataLoader(support_dataset,
+            support_loader = MyDataLoader(support_dataset,
+                                          batch_size=self.batch_size,
+                                          shuffle=True,
+                                          num_workers=self.num_workers,
+                                          collate_fn=collate_fn)
+
+            query_loader = MyDataLoader(query_dataset,
                                         batch_size=self.batch_size,
-                                        shuffle=True,
+                                        shuffle=False,
                                         num_workers=self.num_workers,
-                                        collate_fn = collate_fn)
-
-            query_loader = DataLoader(query_dataset,
-                                      batch_size=self.batch_size,
-                                      shuffle=False,
-                                      num_workers=self.num_workers,
-                                      collate_fn = collate_fn)
+                                        collate_fn=collate_fn)
 
             support_loaders.append(support_loader)
             query_loaders.append(query_loader)
@@ -192,7 +183,6 @@ class Trainer(object):
 
             old_params = parameters_to_vector(
                 self.meta_model.base_model.parameters())
-
 
             # use this loss to save all the losses of query set
             losses_q = torch.tensor([0.0]).to(self.device)
@@ -204,14 +194,14 @@ class Trainer(object):
                 losses_self_atom = 0
                 losses_self_bond = 0
                 losses_contr = 0
-                
+
                 # training support
                 for _, batch in enumerate(
                         tqdm(
                             support_loaders[task],
                             desc=
                             "Training | Epoch: {} | UpdateK: {} | Task: {} | Support Iteration"
-                            .format(epoch, k, task+1))):
+                            .format(epoch, k, task + 1))):
 
                     if self.cfg.model.backbone == "gnn":
                         batch = batch.to(self.device)
@@ -220,46 +210,59 @@ class Trainer(object):
                             batch.batch)
                         y = batch.y.view(pred.shape).to(torch.float64)
 
-                        loss, self_atom_loss, self_bond_loss, contrastive_loss = self.loss_func(self.meta_model, batch, node_emb, graph_emb, pred, self.epochs)
+                        loss, self_atom_loss, self_bond_loss, contrastive_loss = self.loss_func(
+                            self.meta_model, batch, node_emb, graph_emb, pred,
+                            epoch)
 
                         losses_s += loss
                         losses_self_atom += self_atom_loss.item()
                         losses_self_bond += self_bond_loss.item()
                         losses_contr += contrastive_loss.item()
 
-
                     elif self.cfg.model.backbone == "seq":
-                        input_tensor = self.meta_model.tokenizer(batch[0], max_length = 512, add_special_tokens= True, truncation= True, padding=True,return_tensors='pt').to(self.device)
-                        pred, seq_embed = self.meta_model(input_tensor)# last_hidden_states
+                        input_tensor = self.meta_model.tokenizer(
+                            batch[0],
+                            max_length=512,
+                            add_special_tokens=True,
+                            truncation=True,
+                            padding=True,
+                            return_tensors='pt').to(self.device)
+                        pred, seq_embed = self.meta_model(
+                            input_tensor)  # last_hidden_states
                         y = torch.tensor(batch[1]).to(self.device)
-                        loss , contrastive_loss = self.loss_func(y, pred, seq_embed, self.epochs)
+                        loss, contrastive_loss = self.loss_func(
+                            y, pred, seq_embed, self.epochs)
 
                         losses_s += loss
-                        losses_contr += contrastive_loss.item()    
+                        losses_contr += contrastive_loss.item()
 
                 if not self.cfg.mode.nni and self.cfg.logger.log:
-                    mlflow.log_metric("Training/support_task_{}_loss".format(task+1),
-                                      losses_s.item(),
-                                      step=epoch * self.update_step + k)
-                    mlflow.log_metric("Training/support_task_{}_loss_self_atom".format(task+1),
-                                      losses_self_atom,
-                                      step=epoch * self.update_step + k)
-                    mlflow.log_metric("Training/support_task_{}_loss_self_bond".format(task+1),
-                                      losses_self_bond,
-                                      step=epoch * self.update_step + k)
-                    mlflow.log_metric("Training/support_task_{}_loss_contr".format(task+1),
-                                      losses_contr,
-                                      step=epoch * self.update_step + k)
-
+                    mlflow.log_metric(
+                        "Training/support_task_{}_loss".format(task + 1),
+                        losses_s.item(),
+                        step=epoch * self.update_step + k)
+                    mlflow.log_metric(
+                        "Training/support_task_{}_loss_self_atom".format(task +
+                                                                         1),
+                        losses_self_atom,
+                        step=epoch * self.update_step + k)
+                    mlflow.log_metric(
+                        "Training/support_task_{}_loss_self_bond".format(task +
+                                                                         1),
+                        losses_self_bond,
+                        step=epoch * self.update_step + k)
+                    mlflow.log_metric(
+                        "Training/support_task_{}_loss_contr".format(task + 1),
+                        losses_contr,
+                        step=epoch * self.update_step + k)
 
                 _, new_params = update_params(self.meta_model.base_model,
-                                                     losses_s,
-                                                     update_lr=self.update_lr)
+                                              losses_s,
+                                              update_lr=self.update_lr)
 
                 # update parameters of base model by new_params leant from support set
                 vector_to_parameters(new_params,
                                      self.meta_model.base_model.parameters())
-
 
                 # use this loss to save the loss on a single query task
                 this_loss_q = torch.tensor([0.0]).to(self.device)
@@ -274,7 +277,7 @@ class Trainer(object):
                             query_loaders[task],
                             desc=
                             "Training | Epoch: {} | UpdateK: {} | Task: {} | Query Iteration"
-                            .format(epoch, k, task+1))):
+                            .format(epoch, k, task + 1))):
 
                     if self.cfg.model.backbone == "gnn":
                         batch = batch.to(self.device)
@@ -282,37 +285,51 @@ class Trainer(object):
                             batch.x, batch.edge_index, batch.edge_attr,
                             batch.batch)
 
-                        loss_q, self_atom_loss, self_bond_loss, contrastive_loss = self.loss_func(self.meta_model, batch, node_emb, graph_emb, pred, self.epochs)
+                        loss_q, self_atom_loss, self_bond_loss, contrastive_loss = self.loss_func(
+                            self.meta_model, batch, node_emb, graph_emb, pred,
+                            epoch)
 
                         this_loss_q += loss_q
 
                         losses_self_atom += self_atom_loss.item()
                         losses_self_bond += self_bond_loss.item()
                         losses_contr += contrastive_loss.item()
- 
+
                     elif self.cfg.model.backbone == "seq":
-                        input_tensor = self.meta_model.tokenizer(batch[0], max_length = 512, add_special_tokens= True, truncation= True,padding=True,return_tensors='pt').to(self.device)
+                        input_tensor = self.meta_model.tokenizer(
+                            batch[0],
+                            max_length=512,
+                            add_special_tokens=True,
+                            truncation=True,
+                            padding=True,
+                            return_tensors='pt').to(self.device)
                         pred, seq_embed = self.meta_model(input_tensor)
                         y = torch.tensor(batch[1]).to(self.device)
-                        loss_q , contrastive_loss = self.loss_func(y, pred, seq_embed, self.epochs)
+                        loss_q, contrastive_loss = self.loss_func(
+                            y, pred, seq_embed, epoch)
 
                         this_loss_q += loss_q
                         losses_contr += contrastive_loss.item()
-                        
 
                 if not self.cfg.mode.nni and self.cfg.logger.log:
-                    mlflow.log_metric("Training/query_task_{}_loss".format(task+1),
-                                      this_loss_q.item(),
-                                      step=epoch * self.update_step + k)
-                    mlflow.log_metric("Training/query_task_{}_loss_self_atom".format(task+1),
-                                      losses_self_atom,
-                                      step=epoch * self.update_step + k)
-                    mlflow.log_metric("Training/query_task_{}_loss_self_bond".format(task+1),
-                                      losses_self_bond,
-                                      step=epoch * self.update_step + k)
-                    mlflow.log_metric("Training/query_task_{}_loss_contr".format(task+1),
-                                      losses_contr,
-                                      step=epoch * self.update_step + k)
+                    mlflow.log_metric(
+                        "Training/query_task_{}_loss".format(task + 1),
+                        this_loss_q.item(),
+                        step=epoch * self.update_step + k)
+                    mlflow.log_metric(
+                        "Training/query_task_{}_loss_self_atom".format(task +
+                                                                       1),
+                        losses_self_atom,
+                        step=epoch * self.update_step + k)
+                    mlflow.log_metric(
+                        "Training/query_task_{}_loss_self_bond".format(task +
+                                                                       1),
+                        losses_self_bond,
+                        step=epoch * self.update_step + k)
+                    mlflow.log_metric(
+                        "Training/query_task_{}_loss_contr".format(task + 1),
+                        losses_contr,
+                        step=epoch * self.update_step + k)
 
                 if task == 0:
                     losses_q = this_loss_q
@@ -322,26 +339,17 @@ class Trainer(object):
                 vector_to_parameters(old_params,
                                      self.meta_model.base_model.parameters())
 
-
             loss_q = torch.sum(losses_q) / self.num_train_tasks
 
             if not self.cfg.mode.nni and self.cfg.logger.log:
                 mlflow.log_metric("Training/weighted_query_loss",
-                                    loss_q.item(),
-                                    step=epoch * self.update_step + k)
+                                  loss_q.item(),
+                                  step=epoch * self.update_step + k)
 
             self.optimizer.zero_grad()
             loss_q.backward()
             self.optimizer.step()
-            # self.lr_scheduler.step()
-            
-            cur_lr = self.lr_scheduler.optimizer.state_dict(
-                )['param_groups'][0]['lr']
 
-            if not self.cfg.mode.nni and self.cfg.logger.log:
-                mlflow.log_metric("lr",
-                                    cur_lr,
-                                    step=epoch)
         return []
 
     def test(self, epoch):
@@ -349,38 +357,41 @@ class Trainer(object):
         accs = []
         rocs = []
 
-        old_params = parameters_to_vector(self.meta_model.base_model.parameters())
+        old_params = parameters_to_vector(
+            self.meta_model.base_model.parameters())
 
-        for task in range(self.num_test_tasks):
+        for task in self.cfg.tasks[self.dataset_name].test_tasks:
 
             if self.cfg.model.backbone == "gnn":
-                dataset = MoleculeDataset(os.path.join(
-                    self.data_path_root, self.dataset_name, "new",
-                    str(self.num_tasks - task)),
-                                        dataset=self.dataset_name)
-                collate_fn = None 
+                dataset = MoleculeDataset(os.path.join(self.data_path_root,
+                                                       self.dataset_name,
+                                                       "new", str(task + 1)),
+                                          dataset=self.dataset_name)
+                collate_fn = None
+                MyDataLoader = DataLoader
+
             elif self.cfg.model.backbone == "seq":
                 dataset = MoleculeDatasetChem(os.path.join(
                     self.data_path_root, self.dataset_name, "new",
                     str(self.num_tasks - task)),
-                                        dataset=self.dataset_name)
+                                              dataset=self.dataset_name)
                 collate_fn = my_collate_fn
-                DataLoader = DataLoaderChem
-            
-            support_dataset, query_dataset = sample_test_datasets(
-                dataset, self.dataset_name, self.num_tasks - task - 1, self.n_way,
-                self.m_support, self.k_query)
+                MyDataLoader = DataLoaderChem
 
-            support_loader = DataLoader(support_dataset,
+            support_dataset, query_dataset = sample_test_datasets(
+                dataset, self.dataset_name, self.num_tasks - task - 1,
+                self.n_way, self.m_support, self.k_query)
+
+            support_loader = MyDataLoader(support_dataset,
+                                          batch_size=self.batch_size,
+                                          shuffle=False,
+                                          num_workers=self.num_workers,
+                                          collate_fn=collate_fn)
+            query_loader = MyDataLoader(query_dataset,
                                         batch_size=self.batch_size,
                                         shuffle=False,
                                         num_workers=self.num_workers,
-                                        collate_fn = collate_fn)
-            query_loader = DataLoader(query_dataset,
-                                      batch_size=self.batch_size,
-                                      shuffle=False,
-                                      num_workers=self.num_workers,
-                                      collate_fn = collate_fn)
+                                        collate_fn=collate_fn)
 
             self.meta_model.eval()
 
@@ -390,12 +401,13 @@ class Trainer(object):
                 losses_self_atom = 0
                 losses_self_bond = 0
                 losses_contr = 0
-                
-                for step, batch in enumerate(
-                        tqdm(support_loader,
-                             desc="Testing | Epoch: {} | UpdateK: {} | Task: {} | Support Iteration".
-                             format(epoch, k, task))):
 
+                for step, batch in enumerate(
+                        tqdm(
+                            support_loader,
+                            desc=
+                            "Testing | Epoch: {} | UpdateK: {} | Task: {} | Support Iteration"
+                            .format(epoch, k, task))):
 
                     if self.cfg.model.backbone == "gnn":
                         batch = batch.to(self.device)
@@ -404,7 +416,9 @@ class Trainer(object):
                             batch.x, batch.edge_index, batch.edge_attr,
                             batch.batch)
 
-                        test_loss_s, self_atom_loss, self_bond_loss, contrastive_loss = self.loss_func(self.meta_model, batch, node_emb, graph_emb, pred, self.epochs)
+                        test_loss_s, self_atom_loss, self_bond_loss, contrastive_loss = self.loss_func(
+                            self.meta_model, batch, node_emb, graph_emb, pred,
+                            epoch)
 
                         loss += test_loss_s
 
@@ -413,69 +427,95 @@ class Trainer(object):
                         losses_contr += contrastive_loss.item()
 
                     elif self.cfg.model.backbone == "seq":
-                        input_tensor = self.meta_model.tokenizer(batch[0], max_length = 512, add_special_tokens= True, truncation= True,padding=True,return_tensors='pt').to(self.device)
+                        input_tensor = self.meta_model.tokenizer(
+                            batch[0],
+                            max_length=512,
+                            add_special_tokens=True,
+                            truncation=True,
+                            padding=True,
+                            return_tensors='pt').to(self.device)
                         pred, seq_embed = self.meta_model(input_tensor)
                         y = torch.tensor(batch[1]).to(self.device)
-                        test_loss_s, contrastive_loss = self.loss_func(y, pred, seq_embed, self.epochs)
+                        test_loss_s, contrastive_loss = self.loss_func(
+                            y, pred, seq_embed, self.epochs)
                         loss += test_loss_s
                         losses_contr += contrastive_loss.item()
 
-                
                 if not self.cfg.mode.nni and self.cfg.logger.log:
                     mlflow.log_metric(
                         "Testing/support_task_{}_loss".format(task),
                         loss.item(),
                         step=epoch * self.update_step_test + k)
-
-                    mlflow.log_metric("Testing/support_task_{}_loss_self_atom".format(task),
-                                      losses_self_atom,
-                                      step=epoch * self.update_step_test + k)
-                    mlflow.log_metric("Testing/support_task_{}_loss_self_bond".format(task),
-                                      losses_self_bond,
-                                      step=epoch * self.update_step_test + k)
-                    mlflow.log_metric("Testing/support_task_{}_loss_contr".format(task),
-                                      losses_contr,
-                                      step=epoch * self.update_step_test + k)
+                    # mlflow.log_metric(
+                    #     "Testing/support_task_{}_loss_self_atom".format(task),
+                    #     losses_self_atom,
+                    #     step=epoch * self.update_step_test + k)
+                    # mlflow.log_metric(
+                    #     "Testing/support_task_{}_loss_self_bond".format(task),
+                    #     losses_self_bond,
+                    #     step=epoch * self.update_step_test + k)
+                    mlflow.log_metric(
+                        "Testing/support_task_{}_loss_contr".format(task),
+                        losses_contr,
+                        step=epoch * self.update_step_test + k)
 
                 new_grad, new_params = update_params(
                     self.meta_model.base_model, loss, update_lr=self.update_lr)
 
-                vector_to_parameters(new_params, self.meta_model.base_model.parameters())
+                vector_to_parameters(new_params,
+                                     self.meta_model.base_model.parameters())
 
             y_true = []
             y_scores = []
-
+            y_predict = []
             for _, batch in enumerate(
-                    tqdm(query_loader,
-                         desc=
-                         "Testing | Epoch: {} | UpdateK: {} | Task: {} | Query Iteration".
-                         format(epoch, k, task))):
+                    tqdm(
+                        query_loader,
+                        desc=
+                        "Testing | Epoch: {} | UpdateK: {} | Task: {} | Query Iteration"
+                        .format(epoch, k, task))):
 
                 if self.cfg.model.backbone == "gnn":
                     batch = batch.to(self.device)
-                    pred, graph_emb, node_emb = self.meta_model.base_model(
-                        batch.x, batch.edge_index, batch.edge_attr, batch.batch)
-                    
-                elif self.cfg.model.backbone == "seq":
-                    input_tensor = self.meta_model.tokenizer(batch[0], max_length = 512, add_special_tokens= True, truncation= True,padding=True,return_tensors='pt').to(self.device)
-                    pred, seq_embed = self.meta_model(input_tensor)
+                    with torch.no_grad():
+                        pred, graph_emb, node_emb = self.meta_model.base_model(
+                            batch.x, batch.edge_index, batch.edge_attr,
+                            batch.batch)
 
-        
-                pred = torch.sigmoid(pred)
-                pred = torch.where(pred > 0.5, torch.ones_like(pred), pred)
-                pred = torch.where(pred <= 0.5, torch.zeros_like(pred), pred)
-                y_scores.append(pred)
-                y_true.append(torch.tensor(batch[1]).to(self.device))
-                
-            y_true = torch.cat(y_true, dim=0).cpu().detach().numpy()[:,0]
-            y_scores = torch.cat(y_scores, dim=0).cpu().detach().numpy()[:,0]
+                elif self.cfg.model.backbone == "seq":
+                    input_tensor = self.meta_model.tokenizer(
+                        batch[0],
+                        max_length=512,
+                        add_special_tokens=True,
+                        truncation=True,
+                        padding=True,
+                        return_tensors='pt').to(self.device)
+                    with torch.no_grad():
+                        pred, seq_embed = self.meta_model(input_tensor)
+
+                y_score = torch.sigmoid(pred.squeeze()).cpu()
+                y_scores.append(y_score)
+                y_predict.append(
+                    torch.tensor([1 if _ > 0.5 else 0 for _ in y_score],
+                                 dtype=torch.long).cpu())
+
+                if self.cfg.model.backbone == "seq":
+                    y_true.append(
+                        torch.tensor(batch[1], dtype=torch.long).cpu())
+                else:
+                    y_true.append(batch.y.cpu())
+
+            y_true = torch.cat(y_true, dim=0).numpy()
+            y_scores = torch.cat(y_scores, dim=0).numpy()
+            y_predict = torch.cat(y_predict, dim=0).numpy()
+
             roc_score = roc_auc_score(y_true, y_scores)
-            acc_score = accuracy_score(y_true, y_scores)
+            acc_score = accuracy_score(y_true, y_predict)
 
             if not self.cfg.mode.nni and self.cfg.logger.log:
-                mlflow.log_metric("Testing/query_task_{}_acc".format(task),
-                                  acc_score,
-                                  step=epoch)
+                # mlflow.log_metric("Testing/query_task_{}_acc".format(task),
+                #                   acc_score,
+                #                   step=epoch)
                 mlflow.log_metric("Testing/query_task_{}_auc".format(task),
                                   roc_score,
                                   step=epoch)
@@ -484,13 +524,15 @@ class Trainer(object):
             rocs.append(roc_score)
 
         if not self.cfg.mode.nni and self.cfg.logger.log:
-            mlflow.log_metric("Testing/query_mean_acc",
-                                  np.mean(accs),
-                                  step=epoch)
-            mlflow.log_metric("Testing/query_mean_auc", np.mean(rocs),
-                                step=epoch)
-             
-            vector_to_parameters(old_params, self.meta_model.base_model.parameters())
+            # mlflow.log_metric("Testing/query_mean_acc",
+            #                   np.mean(accs),
+            #                   step=epoch)
+            mlflow.log_metric("Testing/query_mean_auc",
+                              np.mean(rocs),
+                              step=epoch)
+
+        vector_to_parameters(old_params,
+                             self.meta_model.base_model.parameters())
 
         return accs, rocs
 
@@ -501,12 +543,19 @@ class Trainer(object):
 
             if epoch % self.eval_epoch == 0:
                 accs, rocs = self.test(epoch)
+                mean_roc = round(np.mean(rocs), 3)
 
-                Logger.info("downstream task accs: {}".format([round(_,3) for _ in accs]))
-                Logger.info("downstream task aucs: {}".format([round(_,3) for _ in rocs]))
+                if mean_roc > self.default_metric:
+                    self.default_metric = mean_roc
 
-            if self.cfg.mode.nni:
-                nni.report_intermediate_result(np.mean(rocs))
+                # Logger.info("downstream task accs: {}".format(
+                #     [round(_, 3) for _ in accs]))
+                Logger.info("downstream task aucs: {}".format(
+                    [round(_, 3) for _ in rocs]))
+                Logger.info(
+                    "mean downstream task mean auc: {}".format(mean_roc))
 
-        if self.cfg.mode.nni:
-            nni.report_final_result(np.mean(rocs))
+                if self.cfg.mode.nni:
+                    nni.report_intermediate_result({"default": np.mean(rocs)})
+
+        nni.report_final_result({"default": self.default_metric})
