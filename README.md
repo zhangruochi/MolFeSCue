@@ -42,7 +42,7 @@ model:
 meta:
   num_atoms: 119
   selfsupervised_weight: 0
-  contrastive_weight: 0
+  contrastive_weight: 0.1
   alpha_s: 1
   alpha_e: 0.2
   beta: 0.1

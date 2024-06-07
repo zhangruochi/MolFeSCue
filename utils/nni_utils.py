@@ -2,12 +2,12 @@
 # -*- coding:utf-8 -*-
 ###
 # File: /home/richard/projects/fsadmet/utils/nni_utils.py
-# Project: /home/richard/projects/fsadmet/utils
+# Project: /home/richard/projects/MolFeSCue/utils
 # Created Date: Wednesday, November 16th 2022, 12:18:54 pm
 # Author: Ruochi Zhang
 # Email: zrc720@gmail.com
 # -----
-# Last Modified: Thu Jun 06 2024
+# Last Modified: Fri Jun 07 2024
 # Modified By: Ruochi Zhang
 # -----
 # Copyright (c) 2022 Bodkin World Domination Enterprises
@@ -55,6 +55,7 @@ def update_cfg(cfg):
         cfg.train.update_lr = optimized_params["update_lr"]
         cfg.train.update_step_test = optimized_params["update_step_test"]
         cfg.train.decay = optimized_params["decay"]
+        cfg.meta.contrastive_weight = optimized_params["contrastive_weight"]
         cfg.logger.log_dir = "outputs_{}".format(trial_id)
 
     return cfg
